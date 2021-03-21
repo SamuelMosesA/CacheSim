@@ -88,7 +88,7 @@ Cache::Cache() {
     if (ways == 0) {
         sets = 1;
         cache.resize(1);
-        cache[0].resize(ways);
+        cache[0].resize(capacity);
     } else {
         sets = capacity / ways;
         cache.resize(sets);

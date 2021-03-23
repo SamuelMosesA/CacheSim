@@ -91,7 +91,7 @@ class Cache {
     int setOffset;
 protected:
     void LRURW(string address);
-    void PsuedoLRURW(unsigned long tag, unsigned long set, unsigned long index);
+    void PsuedoLRURW(string tag, unsigned long set, bool write);
     void RandomRW(string address);
     void DirectMappedRW(string address);
     string addressConversion(string address);
@@ -136,7 +136,7 @@ void Cache:: LRURW(string address){
 
 }
 
-void Cache::PsuedoLRURW(unsigned long tag, unsigned long set, unsigned long index) {
+void Cache::PsuedoLRURW(string tag, unsigned long set, bool write) {
 
 }
 
@@ -236,12 +236,13 @@ string Cache::addressConversion(string address)
 void Cache::load(string address)
 {
 	string binaryAddress = addressConversion(address);
-    string tagStr = binaryAddress.substr(1,31-blockOffset-setOffset);
     string setStr = binaryAddress.substr(32-blockOffset-setOffset, setOffset);
-    bitset<32> tagBitSet(tagStr), setBitSet(setStr);
-    unsigned long tag = tagBitSet.to_ulong();
+    bitset<6> setBitSet(setStr);
+
     unsigned long set = setBitSet.to_ulong();
-co
+    bool write = address.at(0)=='1';
+    string tag = binaryAddress.substr(1,31-blockOffset-setOffset);
+
 	if(ways==1)
 	{
 		DirectMappedRW(binaryAddress);
@@ -256,7 +257,7 @@ co
 	}
 	else
 	{
-        PsuedoLRURW(tag, set, 0);
+        PsuedoLRURW(tag, set, write);
 	}
 }
 

@@ -108,7 +108,7 @@ Cache::Cache() {
         sets = 1;
         cache.resize(1);
         cache[0].resize(capacity);
-        ways = capcity;
+        ways = capacity;
     } else {
         sets = capacity / ways;
         cache.resize(sets);

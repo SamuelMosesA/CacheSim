@@ -4,6 +4,7 @@
 #include<string>
 #include <vector>
 #include <bitset>
+#include <set>
 
 using namespace std;
 
@@ -19,7 +20,6 @@ struct CacheBlock{
 CacheBlock::CacheBlock()
 {
 	valid = 0;
-	dirty = 0;
 }
 
 class PLRUTree {
@@ -89,12 +89,15 @@ class Cache {
     long block;
     int blockOffset;
     int setOffset;
+    set<string,unsigned long> seenAddresses;
+
 protected:
     void LRURW(string address);
-    void PsuedoLRURW(string tag, unsigned long set, bool write);
+    void PsuedoLRURW(const string& tag, const unsigned long &set, bool &write);
     void RandomRW(string address);
     void DirectMappedRW(string address);
     string addressConversion(string address);
+    int searchTagArray(unsigned int set, const string& tag);
 public:
     Cache();
     ~Cache();
@@ -132,11 +135,63 @@ Cache::Cache() {
     }
 }
 
+int Cache::searchTagArray(unsigned int set, const string& tag) {
+    int res = -1;
+    auto currSet = cache[set];
+    if(ways>0) {
+        for (int i = 0; i < ways; ++i) {
+            if (currSet[i].valid==1 && currSet[i].tag == tag) {
+                res = i;
+                break;
+            }
+        }
+    }
+    return res;
+}
+
 void Cache:: LRURW(string address){
 
 }
 
-void Cache::PsuedoLRURW(string tag, unsigned long set, bool write) {
+void Cache::PsuedoLRURW(const string& tag, const unsigned long &set, bool &write) {
+    int hitInd = searchTagArray(set, tag), replaceInd;
+    if (hitInd != -1) {//cache hit
+        cacheTrees[set].read(hitInd);
+        if(write) {
+            cache[set][hitInd].dirty = 1;
+            writeAcc++;
+        }else {
+            readAcc++;
+        }
+    }else{//miss
+        CacheBlock b;
+        b.tag = tag;
+        b.valid =1;
+        replaceInd = cacheTrees[set].replace();
+
+        ++cacheMiss;
+        if(seenAddresses.find({tag,set})!=seenAddresses.end())
+            confMiss++;
+        else
+            ++compMiss;
+
+        if(cache[set][replaceInd].dirty==1)
+            ++dirtyEvict;
+
+
+        if(write){
+            b.dirty = 1;
+            cache[set][replaceInd] = b;
+            writeAcc++;
+            writeMiss++;
+        }else{
+            b.dirty = 0;
+            cache[set][replaceInd] = b;
+            readAcc++;
+            readMiss++;
+    }
+}
+
 
 }
 
@@ -169,8 +224,12 @@ void Cache::DirectMappedRW(string address){
 		}
 	}
 	else
-	{
-		confMiss++;
+	{   ++cacheMiss;
+//        if(seenAddresses.find({tag,set})!=seenAddresses.end())
+//            confMiss++;
+//        else
+//            ++compMiss;
+
 		if(address.at(0)=='1')
 		{
 			b.dirty = 1;
@@ -243,6 +302,8 @@ void Cache::load(string address)
     bool write = address.at(0)=='1';
     string tag = binaryAddress.substr(1,31-blockOffset-setOffset);
 
+    ++cacheRef; //check if logic is correct
+
 	if(ways==1)
 	{
 		DirectMappedRW(binaryAddress);
@@ -259,7 +320,11 @@ void Cache::load(string address)
 	{
         PsuedoLRURW(tag, set, write);
 	}
+
+	seenAddresses.emplace(tag,set);
 }
+
+
 
 int main() {
     Cache c;

@@ -1,8 +1,9 @@
 
 #include<iostream>
 #include<fstream>
-#include<string.h>
+#include<string>
 #include <vector>
+#include <bitset>
 
 using namespace std;
 
@@ -18,6 +19,7 @@ struct CacheBlock{
 CacheBlock::CacheBlock()
 {
 	valid = 0;
+	dirty = 0;
 }
 
 class PLRUTree {
@@ -89,7 +91,7 @@ class Cache {
     int setOffset;
 protected:
     void LRURW(string address);
-    void PsuedoLRURW(string address);
+    void PsuedoLRURW(unsigned long tag, unsigned long set, unsigned long index);
     void RandomRW(string address);
     void DirectMappedRW(string address);
     string addressConversion(string address);
@@ -106,7 +108,7 @@ Cache::Cache() {
         sets = 1;
         cache.resize(1);
         cache[0].resize(capacity);
-        ways = capcity;
+        ways = capacity;
     } else {
         sets = capacity / ways;
         cache.resize(sets);
@@ -130,19 +132,19 @@ Cache::Cache() {
     }
 }
 
-void LRURW(string address){
+void Cache:: LRURW(string address){
 
 }
 
-void PsuedoLRURW(string address){
+void Cache::PsuedoLRURW(unsigned long tag, unsigned long set, unsigned long index) {
 
 }
 
-void RandomRW(string address){
+void Cache::RandomRW(string address){
 
 }
 
-void DirectMappedRW(string address){
+void Cache::DirectMappedRW(string address){
 	CacheBlock b;
 	b.tag = address.substr(1,31-blockOffset-setOffset);
 	b.valid = 1;
@@ -186,13 +188,13 @@ void DirectMappedRW(string address){
 	}
 }
 
-void Cache::addressConversion(string address)
+string Cache::addressConversion(string address)
 {
 	string ba;
-	int l = str.length(); 
+	int l = address.length();
 	char ch;
     	for (int i = 0; i < l; i++) { 
-        	ch = str.at(i); 
+        	ch = address.at(i);
         	switch(ch){
         		case '0': ba = ba + "0000";
         		continue;
@@ -234,6 +236,12 @@ void Cache::addressConversion(string address)
 void Cache::load(string address)
 {
 	string binaryAddress = addressConversion(address);
+    string tagStr = binaryAddress.substr(1,31-blockOffset-setOffset);
+    string setStr = binaryAddress.substr(32-blockOffset-setOffset, setOffset);
+    bitset<32> tagBitSet(tagStr), setBitSet(setStr);
+    unsigned long tag = tagBitSet.to_ulong();
+    unsigned long set = setBitSet.to_ulong();
+co
 	if(ways==1)
 	{
 		DirectMappedRW(binaryAddress);
@@ -248,7 +256,7 @@ void Cache::load(string address)
 	}
 	else
 	{
-		PsuedoLRURW(binaryAddress);	
+        PsuedoLRURW(tag, set, 0);
 	}
 }
 

@@ -18,6 +18,8 @@ struct CacheBlock{
 CacheBlock::CacheBlock()
 {
 	valid = 0;
+	tag = "";
+	dirty = 0;
 }
 
 class PLRUTree {

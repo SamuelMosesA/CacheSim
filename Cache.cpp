@@ -4,6 +4,8 @@
 #include <vector>
 #include <bitset>
 #include <set>
+#include <list>
+#include <iterator>
 
 using namespace std;
 
@@ -14,11 +16,21 @@ struct CacheBlock{
 	int valid;
 	int dirty;
 	CacheBlock();
+	CacheBlock(string, int, int);
 };
 
 CacheBlock::CacheBlock()
 {
+	tag = "";
 	valid = 0;
+	dirty = 0;
+}
+
+CacheBlock::CacheBlock(string t, int v, int d)
+{
+	tag = t;
+	valid = v;
+	dirty = d;
 }
 
 class PLRUTree {
@@ -79,6 +91,7 @@ void PLRUTree::read(int ind) {
 
 class Cache {
     vector<vector<CacheBlock>> cache;
+	vector<list<CacheBlock>> LRUList;
     vector<PLRUTree> cacheTrees;
     long capacity;
     long sets;
@@ -91,10 +104,10 @@ class Cache {
     set<string,unsigned long> seenAddresses;
 
 protected:
-    void LRURW(string address);
+    void LRURW(const string& tag, const unsigned long &set, bool &write);
     void PsuedoLRURW(const string& tag, const unsigned long &set, bool &write);
-    void RandomRW(string address);
-    void DirectMappedRW(string address);
+    void RandomRW(const string& tag, const unsigned long &set, bool &write);
+    void DirectMappedRW(const string& tag, const unsigned long &set, bool &write);
     string addressConversion(string address);
     int searchTagArray(unsigned int set, const string& tag);
 public:
@@ -148,8 +161,33 @@ int Cache::searchTagArray(unsigned int set, const string& tag) {
     return res;
 }
 
-void Cache:: LRURW(string address){
-
+void Cache:: LRURW(const string& tag, const unsigned long &set, bool &write){
+	list<CacheBlock>::iterator it;
+	int v, d;
+	for (it = LRUList[set].begin(); it != LRUList[set].end(); it++){
+		if(it->tag == tag) {
+			v = (*it).valid;
+			d = write&(it->dirty);
+			LRUList[set].erase(it);
+			break;
+		}
+	}
+	if(it == LRUList[set].end()) {			// Element not in cache
+		it = LRUList[set].begin();
+		while(it->valid == 1 && it != LRUList[set].end()) it++;
+		if(it->valid == 0) {		// Found unassigned cache block
+			LRUList[set].erase(it);
+			v = 1;
+			d = write;
+		}
+		else {					// Cache is full
+			LRUList.pop_back();		// Remove last element
+			v = 1;
+			d = write;
+		}
+	}
+	CacheBlock newBlock = {tag, v, d};
+	LRUList[set].emplace_front(newBlock);
 }
 
 void Cache::PsuedoLRURW(const string& tag, const unsigned long &set, bool &write) {
@@ -212,7 +250,7 @@ void Cache::RandomRW(const string& tag, const unsigned long &set, bool &write)
 	else
 	{
 		CacheBlock b;
-		b.tag = tag
+		b.tag = tag;
 		b.valid = 1;
 		if(write)
 		{
@@ -250,9 +288,9 @@ void Cache::RandomRW(const string& tag, const unsigned long &set, bool &write)
 void Cache::DirectMappedRW(const string& tag, const unsigned long &set, bool &write)
 {
 	CacheBlock b;
-	b.tag = tag
+	b.tag = tag;
 	b.valid = 1;
-	int present  = searchTagArray(set, tag)
+	int present  = searchTagArray(set, tag);
 	if(present==0)
 	{
 		if(write)
@@ -357,13 +395,12 @@ void Cache::load(string address)
 	}
 	else if(replacementPolicy == 1)
 	{
-		LRURW(binaryAddress);
+		LRURW(tag, set, write);
 	}
 	else
 	{
         PsuedoLRURW(tag, set, write);
 	}
-
 	seenAddresses.emplace(tag,set);
 }
 

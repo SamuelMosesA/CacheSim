@@ -7,6 +7,8 @@
 #include <list>
 #include <iterator>
 #include <utility>
+
+
 using namespace std;
 
 long int cacheRef, cacheMiss, readAcc, writeAcc, compMiss, capMiss, confMiss, readMiss, writeMiss, dirtyEvict;
@@ -136,10 +138,10 @@ Cache::Cache() {
     }
     
     blockOffset = 0;
-    for(int j=2; j<=block; j++)
+    for(int j=2; j<=block; j*=2)
     	blockOffset++;
     setOffset = 0;
-    for(int l=2; l<=sets; l++)
+    for(int l=2; l<=sets; l*=2)
     	setOffset++;
     	
     if (ways >= 2 && replacementPolicy == 2) {
@@ -151,17 +153,17 @@ Cache::Cache() {
 }
 
 int Cache::searchTagArray(unsigned int set, const string& tag) {
-    int res = -1;
-    auto currSet = cache[set];
-    if(ways>0) {
-        for (int i = 0; i < ways; ++i) {
-            if (currSet[i].valid==1 && currSet[i].tag == tag) {
-                res = i;
-                break;
-            }
-        }
-    }
-    return res;
+	int res = -1;
+	auto currSet = cache[set];
+
+	for (int i = 0; i < ways; ++i) {
+		if (currSet[i].valid==1 && currSet[i].tag == tag) {
+		res = i;
+		break;
+		}
+	}
+
+	return res;
 }
 
 void Cache:: LRURW(const string& tag, const unsigned long &set, bool &write){
@@ -205,12 +207,8 @@ void Cache::PsuedoLRURW(const string& tag, const unsigned long &set, bool &write
     int hitInd = searchTagArray(set, tag), replaceInd;
     if (hitInd != -1) {//cache hit
         cacheTrees[set].read(hitInd);
-        if(write) {
+        if(write) 
             cache[set][hitInd].dirty = 1;
-            writeAcc++;
-        }else {
-            readAcc++;
-        }
     }else{//miss
         CacheBlock b;
         b.tag = tag;
@@ -230,12 +228,10 @@ void Cache::PsuedoLRURW(const string& tag, const unsigned long &set, bool &write
         if(write){
             b.dirty = 1;
             cache[set][replaceInd] = b;
-            writeAcc++;
             writeMiss++;
         }else{
             b.dirty = 0;
             cache[set][replaceInd] = b;
-            readAcc++;
             readMiss++;
     }
 }
@@ -249,14 +245,8 @@ void Cache::RandomRW(const string& tag, const unsigned long &set, bool &write)
 	if(present>=0)
 	{
 		if(write)
-		{
 			cache[set][present].dirty = 1;
-			writeAcc++;
-		}
-		else
-		{
-			readAcc++;
-		}
+
 	}
 	else
 	{
@@ -266,12 +256,10 @@ void Cache::RandomRW(const string& tag, const unsigned long &set, bool &write)
 		if(write)
 		{
 			b.dirty=1;
-			writeAcc++;
 		}
 		else
 		{
 			b.dirty=0;
-			readAcc++;
 		}
 		int vacant;
 		for(vacant = 0; vacant < ways; vacant++)
@@ -305,14 +293,9 @@ void Cache::DirectMappedRW(const string& tag, const unsigned long &set, bool &wr
 	if(present==0)
 	{
 		if(write)
-		{
 			cache[set][0].dirty = 1;
-			writeAcc++;	
-		}
-		else
-		{
-			readAcc++;
-		}
+		
+
 	}
 	else
 	{   
@@ -326,14 +309,12 @@ void Cache::DirectMappedRW(const string& tag, const unsigned long &set, bool &wr
 		{
 			b.dirty = 1;
 			cache[set][0] = b;
-			writeAcc++;
 			writeMiss++;
 		}
 		else
 		{
 			b.dirty = 0;
 			cache[set][0] = b;
-			readAcc++;
 			readMiss++;
 		}
 	}
@@ -388,13 +369,17 @@ void Cache::load(string address)
 {
 	string binaryAddress = addressConversion(address);
     string setStr = binaryAddress.substr(32-blockOffset-setOffset, setOffset);
-    bitset<6> setBitSet(setStr);
+    bitset<5> setBitSet(setStr);
 
     unsigned long set = setBitSet.to_ulong();
     bool write = address.at(0)=='1';
     string tag = binaryAddress.substr(1,31-blockOffset-setOffset);
 
-    ++cacheRef; //check if logic is correct
+    ++cacheRef; 
+	if(write)
+		writeAcc++;
+	else
+   		readAcc++;
 
 	if(ways==1)
 	{

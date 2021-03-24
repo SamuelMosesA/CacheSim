@@ -148,17 +148,17 @@ Cache::Cache() {
 }
 
 int Cache::searchTagArray(unsigned int set, const string& tag) {
-    int res = -1;
-    auto currSet = cache[set];
-    if(ways>0) {
-        for (int i = 0; i < ways; ++i) {
-            if (currSet[i].valid==1 && currSet[i].tag == tag) {
-                res = i;
-                break;
-            }
-        }
-    }
-    return res;
+	int res = -1;
+	auto currSet = cache[set];
+
+	for (int i = 0; i < ways; ++i) {
+		if (currSet[i].valid==1 && currSet[i].tag == tag) {
+		res = i;
+		break;
+		}
+	}
+
+	return res;
 }
 
 void Cache:: LRURW(const string& tag, const unsigned long &set, bool &write){

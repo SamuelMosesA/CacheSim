@@ -133,10 +133,10 @@ Cache::Cache() {
     }
     
     blockOffset = 0;
-    for(int j=2; j<=block; j++)
+    for(int j=2; j<=block; j*=2)
     	blockOffset++;
     setOffset = 0;
-    for(int l=2; l<=sets; l++)
+    for(int l=2; l<=sets; l*=2)
     	setOffset++;
     	
     if (ways >= 2 && replacementPolicy == 2) {

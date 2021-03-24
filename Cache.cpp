@@ -1,4 +1,3 @@
-
 #include<iostream>
 #include<fstream>
 #include<string>
@@ -195,27 +194,70 @@ void Cache::PsuedoLRURW(const string& tag, const unsigned long &set, bool &write
 
 }
 
-void Cache::RandomRW(string address){
-
+void Cache::RandomRW(const string& tag, const unsigned long &set, bool &write)
+{
+	int present  = searchTagArray(set, tag);
+	if(present>=0)
+	{
+		if(write)
+		{
+			cache[set][present].dirty = 1;
+			writeAcc++;
+		}
+		else
+		{
+			readAcc++;
+		}
+	}
+	else
+	{
+		CacheBlock b;
+		b.tag = tag
+		b.valid = 1;
+		if(write)
+		{
+			b.dirty=1;
+			writeAcc++;
+		}
+		else
+		{
+			b.dirty=0;
+			readAcc++;
+		}
+		int vacant;
+		for(vacant = 0; vacant < ways; vacant++)
+			if(cache[set][vacant].valid == 0)
+				break;
+		if(vacant < ways)
+		{
+			cache[set][vacant] = b;
+			compMiss++;
+		}
+		else
+		{
+			vacant = rand() % ways;
+			if(seenAddresses.find({tag,set})!=seenAddresses.end())
+	           		confMiss++;
+	        	else
+	            		++compMiss;
+	            	if(cache[set][vacant].dirty==1)
+	            		dirtyEvict++;
+	            	cache[set][vacant] = b;
+		}
+	}
 }
 
-void Cache::DirectMappedRW(string address){
+void Cache::DirectMappedRW(const string& tag, const unsigned long &set, bool &write)
+{
 	CacheBlock b;
-	b.tag = address.substr(1,31-blockOffset-setOffset);
+	b.tag = tag
 	b.valid = 1;
-	string set = address.substr(32-blockOffset-setOffset, setOffset);
-	long s = 0, i;
-	std::string::reverse_iterator it1; 
-	for (it1=str.rbegin(), i=1; it1!=str.rend(); it1++, i*=2)
+	int present  = searchTagArray(set, tag)
+	if(present==0)
 	{
-		if(*it == '1')
-			s+=i;
-	} 
-	if(cache[s][0].tag == b.tag)
-	{
-		if(address.at(0)=='1')
+		if(write)
 		{
-			cache[s][0].dirty = 1;
+			cache[set][0].dirty = 1;
 			writeAcc++;	
 		}
 		else
@@ -224,23 +266,24 @@ void Cache::DirectMappedRW(string address){
 		}
 	}
 	else
-	{   ++cacheMiss;
-//        if(seenAddresses.find({tag,set})!=seenAddresses.end())
-//            confMiss++;
-//        else
-//            ++compMiss;
+	{   
+		++cacheMiss;
+	        if(seenAddresses.find({tag,set})!=seenAddresses.end())
+	            confMiss++;
+	        else
+	            ++compMiss;
 
-		if(address.at(0)=='1')
+		if(write)
 		{
 			b.dirty = 1;
-			cache[s][0] = b;
+			cache[set][0] = b;
 			writeAcc++;
 			writeMiss++;
 		}
 		else
 		{
 			b.dirty = 0;
-			cache[s][0] = b;
+			cache[set][0] = b;
 			readAcc++;
 			readMiss++;
 		}
@@ -306,11 +349,11 @@ void Cache::load(string address)
 
 	if(ways==1)
 	{
-		DirectMappedRW(binaryAddress);
+		DirectMappedRW(tag, set, write);
 	}
 	else if(replacementPolicy == 0)
 	{
-		RandomRW(binaryAddress);
+		RandomRW(tag, set, write);
 	}
 	else if(replacementPolicy == 1)
 	{

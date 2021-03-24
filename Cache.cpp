@@ -113,7 +113,6 @@ protected:
     int searchTagArray(unsigned int set, const string& tag);
 public:
     Cache();
-    ~Cache();
     void load(string address);
 };
 

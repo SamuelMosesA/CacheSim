@@ -6,7 +6,7 @@
 #include <set>
 #include <list>
 #include <iterator>
-
+#include <utility>
 using namespace std;
 
 long int cacheRef, cacheMiss, readAcc, writeAcc, compMiss, capMiss, confMiss, readMiss, writeMiss, dirtyEvict;
@@ -101,7 +101,7 @@ class Cache {
     long block;
     int blockOffset;
     int setOffset;
-    set<string,unsigned long> seenAddresses;
+    set<pair<string,unsigned long>> seenAddresses;
 
 protected:
     void LRURW(const string& tag, const unsigned long &set, bool &write);
@@ -112,7 +112,6 @@ protected:
     int searchTagArray(unsigned int set, const string& tag);
 public:
     Cache();
-    ~Cache();
     void load(string address);
 };
 
@@ -122,13 +121,17 @@ Cache::Cache() {
     if (ways == 0) {
         sets = 1;
         cache.resize(1);
+		LRUList.resize(1);
         cache[0].resize(capacity);
+        LRUList[0].resize(capacity);
         ways = capacity;
     } else {
         sets = capacity / ways;
         cache.resize(sets);
+		LRUList.resize(sets);
         for (int i = 0; i < sets; i++) {
             cache[i].resize(ways);
+			LRUList[i].resize(ways);
         }
     }
     
@@ -165,7 +168,7 @@ void Cache:: LRURW(const string& tag, const unsigned long &set, bool &write){
 	list<CacheBlock>::iterator it;
 	int v, d;
 	for (it = LRUList[set].begin(); it != LRUList[set].end(); it++){
-		if(it->tag == tag) {
+		if(it->tag == tag) {			// Cache hit
 			v = (*it).valid;
 			d = write&(it->dirty);
 			LRUList[set].erase(it);
@@ -173,14 +176,22 @@ void Cache:: LRURW(const string& tag, const unsigned long &set, bool &write){
 		}
 	}
 	if(it == LRUList[set].end()) {			// Element not in cache
+		cacheMiss++;
+		write? writeMiss++:readMiss++;
 		it = LRUList[set].begin();
 		while(it->valid == 1 && it != LRUList[set].end()) it++;
-		if(it->valid == 0) {		// Found unassigned cache block
+		if(it!= LRUList[set].end() && it->valid == 0) {		// Found unassigned cache block
 			LRUList[set].erase(it);
 			v = 1;
 			d = write;
 		}
 		else {					// Cache is full
+			confMiss++;
+			if(sets == 1) capMiss++;
+			CacheBlock temp = LRUList[set].back();
+			if(temp.dirty) {			// Dirty block eviction
+				dirtyEvict++;
+			}
 			LRUList.pop_back();		// Remove last element
 			v = 1;
 			d = write;
@@ -401,7 +412,7 @@ void Cache::load(string address)
 	{
         PsuedoLRURW(tag, set, write);
 	}
-	seenAddresses.emplace(tag,set);
+	seenAddresses.emplace(make_pair(tag,set));
 }
 
 

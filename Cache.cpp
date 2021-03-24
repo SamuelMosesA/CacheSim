@@ -8,6 +8,7 @@
 #include <iterator>
 #include <utility>
 
+
 using namespace std;
 
 long int cacheRef, cacheMiss, readAcc, writeAcc, compMiss, capMiss, confMiss, readMiss, writeMiss, dirtyEvict;
@@ -122,13 +123,17 @@ Cache::Cache() {
     if (ways == 0) {
         sets = 1;
         cache.resize(1);
+		LRUList.resize(1);
         cache[0].resize(capacity);
+        LRUList[0].resize(capacity);
         ways = capacity;
     } else {
         sets = capacity / ways;
         cache.resize(sets);
+		LRUList.resize(sets);
         for (int i = 0; i < sets; i++) {
             cache[i].resize(ways);
+			LRUList[i].resize(ways);
         }
     }
     

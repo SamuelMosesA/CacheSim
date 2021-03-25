@@ -188,7 +188,10 @@ void Cache:: LRURW(const string& tag, const unsigned long &set, bool &write){
 			d = write;
 		}
 		else {					// Cache is full
-			confMiss++;
+			if(seenAddresses.find({tag,set})!=seenAddresses.end())
+            	confMiss++;
+			else
+				++compMiss;
 			if(sets == 1) capMiss++;
 			CacheBlock temp = LRUList[set].back();
 			if(temp.dirty) {			// Dirty block eviction

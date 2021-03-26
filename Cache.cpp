@@ -134,7 +134,7 @@ Cache::Cache(long s, long b, int w, int r) {
     capacity = size / block;
     if (ways == 0) {
         sets = 1;
-        if (replacementPolicy == 1) {
+        if (ways >= 2 && replacementPolicy == 1) {
             LRUList.resize(1);
             LRUList[0].resize(capacity);
         } else {
@@ -145,7 +145,7 @@ Cache::Cache(long s, long b, int w, int r) {
 
     } else {
         sets = capacity / ways;
-        if (replacementPolicy == 1) {
+        if (ways >= 2 && replacementPolicy == 1) {
             LRUList.resize(sets);
             for (int i = 0; i < sets; i++) {
                 LRUList[i].resize(ways);
@@ -306,13 +306,15 @@ void Cache::DirectMappedRW(const string &tag, const unsigned long &set, bool &wr
         if (write)
             cache[set][0].dirty = 1;
 
-
     } else {
         ++cacheMiss;
         if (seenAddresses.find({tag, set}) != seenAddresses.end())
             confMiss++;
         else
             ++compMiss;
+
+        if (cache[set][0].dirty == 1)
+            ++dirtyEvict;
 
         if (write) {
             b.dirty = 1;
@@ -363,22 +365,22 @@ string Cache::addressConversion(string address) {
             case '9':
                 ba = ba + "1001";
                 continue;
-            case 'A':
+            case 'a':
                 ba = ba + "1010";
                 continue;
-            case 'B':
+            case 'b':
                 ba = ba + "1011";
                 continue;
-            case 'C':
+            case 'c':
                 ba = ba + "1100";
                 continue;
-            case 'D':
+            case 'd':
                 ba = ba + "1101";
                 continue;
-            case 'E':
+            case 'e':
                 ba = ba + "1110";
                 continue;
-            case 'F':
+            case 'f':
                 ba = ba + "1111";
                 continue;
         }
@@ -389,11 +391,13 @@ string Cache::addressConversion(string address) {
 void Cache::load(string address, char rw) {
     string binaryAddress = addressConversion(address);
     string setStr = binaryAddress.substr(32 - blockOffset - setOffset, setOffset);
-    bitset<5> setBitSet(setStr);
+    bitset<32> setBitSet(setStr);
 
     unsigned long set = setBitSet.to_ulong();
     bool write = rw=='w';
     string tag = binaryAddress.substr(0, 32 - blockOffset - setOffset);//check if this change is right
+
+
 
     ++cacheRef;
     if (write)
@@ -429,6 +433,7 @@ int main() {
     while (!addressFile.eof()) {
         addressFile>>rw;
         c.load(inp, rw);
+        addressFile>>inp;
     }
     addressFile.close();
 

@@ -7,32 +7,33 @@
 #include <list>
 #include <iterator>
 #include <utility>
+#include <sstream>
 
 
 using namespace std;
 
 long int cacheRef, cacheMiss, readAcc, writeAcc, compMiss, capMiss, confMiss, readMiss, writeMiss, dirtyEvict;
 
-struct CacheBlock{
-	string tag;
-	int valid;
-	int dirty;
-	CacheBlock();
-	CacheBlock(string, int, int);
+struct CacheBlock {
+    string tag;
+    int valid;
+    int dirty;
+
+    CacheBlock();
+
+    CacheBlock(string, int, int);
 };
 
-CacheBlock::CacheBlock()
-{
-	tag = "";
-	valid = 0;
-	dirty = 0;
+CacheBlock::CacheBlock() {
+    tag = "";
+    valid = 0;
+    dirty = 0;
 }
 
-CacheBlock::CacheBlock(string t, int v, int d)
-{
-	tag = t;
-	valid = v;
-	dirty = d;
+CacheBlock::CacheBlock(string t, int v, int d) {
+    tag = t;
+    valid = v;
+    dirty = d;
 }
 
 class PLRUTree {
@@ -92,8 +93,9 @@ void PLRUTree::read(int ind) {
 
 
 class Cache {
+
     vector<vector<CacheBlock>> cache;
-	vector<list<CacheBlock>> LRUList;
+    vector<list<CacheBlock>> LRUList;
     vector<PLRUTree> cacheTrees;
     long capacity;
     long sets;
@@ -103,315 +105,354 @@ class Cache {
     long block;
     int blockOffset;
     int setOffset;
-    set<pair<string,unsigned long>> seenAddresses;
+    set<pair<string, unsigned long>> seenAddresses;
 
 protected:
-    void LRURW(const string& tag, const unsigned long &set, bool &write);
-    void PsuedoLRURW(const string& tag, const unsigned long &set, bool &write);
-    void RandomRW(const string& tag, const unsigned long &set, bool &write);
-    void DirectMappedRW(const string& tag, const unsigned long &set, bool &write);
+    void LRURW(const string &tag, const unsigned long &set, bool &write);
+
+    void PsuedoLRURW(const string &tag, const unsigned long &set, bool &write);
+
+    void RandomRW(const string &tag, const unsigned long &set, bool &write);
+
+    void DirectMappedRW(const string &tag, const unsigned long &set, bool &write);
+
     string addressConversion(string address);
-    int searchTagArray(unsigned int set, const string& tag);
+
+    int searchTagArray(unsigned int set, const string &tag);
+
 public:
-    Cache();
-    void load(string address);
+    Cache(long s, long b, int w, int r);
+
+    void load(string address, char rw);
 };
 
-Cache::Cache() {
-    cin >> size >> block >> ways >> replacementPolicy;
+Cache::Cache(long s, long b, int w, int r) {
+    size = s;
+    block = b;
+    ways = w;
+    replacementPolicy = r;
     capacity = size / block;
     if (ways == 0) {
         sets = 1;
-        cache.resize(1);
-		LRUList.resize(1);
-        cache[0].resize(capacity);
-        LRUList[0].resize(capacity);
+        if (replacementPolicy == 1) {
+            LRUList.resize(1);
+            LRUList[0].resize(capacity);
+        } else {
+            cache.resize(1);
+            cache[0].resize(capacity);
+        }
         ways = capacity;
+
     } else {
         sets = capacity / ways;
-        cache.resize(sets);
-		LRUList.resize(sets);
-        for (int i = 0; i < sets; i++) {
-            cache[i].resize(ways);
-			LRUList[i].resize(ways);
+        if (replacementPolicy == 1) {
+            LRUList.resize(sets);
+            for (int i = 0; i < sets; i++) {
+                LRUList[i].resize(ways);
+            }
+        } else {
+            cache.resize(sets);
+            for (int i = 0; i < sets; i++) {
+                cache[i].resize(ways);
+            }
         }
     }
-    
+
     blockOffset = 0;
-    for(int j=2; j<=block; j*=2)
-    	blockOffset++;
+    for (int j = 2; j <= block; j*=2)
+        blockOffset++;
     setOffset = 0;
-    for(int l=2; l<=sets; l*=2)
-    	setOffset++;
-    	
+    for (int l = 2; l <= sets; l*=2)
+        setOffset++;
+
     if (ways >= 2 && replacementPolicy == 2) {
         int k = 0;
-        while ((ways & (1 << k))==0)
+        while ((ways & (1 << k)) == 0)
             ++k;
         cacheTrees.resize(sets, PLRUTree(ways, k));
     }
 }
 
-int Cache::searchTagArray(unsigned int set, const string& tag) {
-	int res = -1;
-	auto currSet = cache[set];
+int Cache::searchTagArray(unsigned int set, const string &tag) {
+    int res = -1;
+    auto currSet = cache[set];
 
-	for (int i = 0; i < ways; ++i) {
-		if (currSet[i].valid==1 && currSet[i].tag == tag) {
-		res = i;
-		break;
-		}
-	}
+    for (int i = 0; i < ways; ++i) {
+        if (currSet[i].valid == 1 && currSet[i].tag == tag) {
+            res = i;
+            break;
+        }
+    }
 
-	return res;
+    return res;
 }
 
-void Cache:: LRURW(const string& tag, const unsigned long &set, bool &write){
-	list<CacheBlock>::iterator it;
-	int v, d;
-	for (it = LRUList[set].begin(); it != LRUList[set].end(); it++){
-		if(it->tag == tag) {			// Cache hit
-			v = (*it).valid;
-			d = write&(it->dirty);
-			LRUList[set].erase(it);
-			break;
-		}
-	}
-	if(it == LRUList[set].end()) {			// Element not in cache
-		cacheMiss++;
-		write? writeMiss++:readMiss++;
-		it = LRUList[set].begin();
-		while(it->valid == 1 && it != LRUList[set].end()) it++;
-		if(it!= LRUList[set].end() && it->valid == 0) {		// Found unassigned cache block
-			LRUList[set].erase(it);
-			v = 1;
-			d = write;
-		}
-		else {					// Cache is full
-			if(seenAddresses.find({tag,set})!=seenAddresses.end())
-            	confMiss++;
-			else
-				++compMiss;
-			if(sets == 1) capMiss++;
-			CacheBlock temp = LRUList[set].back();
-			if(temp.dirty) {			// Dirty block eviction
-				dirtyEvict++;
-			}
-			LRUList.pop_back();		// Remove last element
-			v = 1;
-			d = write;
-		}
-	}
-	CacheBlock newBlock = {tag, v, d};
-	LRUList[set].emplace_front(newBlock);
+void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
+    list<CacheBlock>::iterator it;
+    int v, d;
+    for (it = LRUList[set].begin(); it != LRUList[set].end(); it++) {
+        if (it->tag == tag) {            // Cache hit
+            v = (*it).valid;
+            d = write & (it->dirty);
+            LRUList[set].erase(it);
+            break;
+        }
+    }
+    if (it == LRUList[set].end()) {            // Element not in cache
+        cacheMiss++;
+        write ? writeMiss++ : readMiss++;
+        it = LRUList[set].begin();
+        while (it->valid == 1 && it != LRUList[set].end()) it++;
+        if (it != LRUList[set].end() && it->valid == 0) {        // Found unassigned cache block
+            LRUList[set].erase(it);
+            v = 1;
+            d = write;
+        } else {                    // Cache is full
+            if (seenAddresses.find({tag, set}) != seenAddresses.end())
+                confMiss++;
+            else
+                ++compMiss;
+            if (sets == 1) capMiss++;
+            CacheBlock temp = LRUList[set].back();
+            if (temp.dirty) {            // Dirty block eviction
+                dirtyEvict++;
+            }
+            LRUList.pop_back();        // Remove last element
+            v = 1;
+            d = write;
+        }
+    }
+    CacheBlock newBlock = {tag, v, d};
+    LRUList[set].emplace_front(newBlock);
 }
 
-void Cache::PsuedoLRURW(const string& tag, const unsigned long &set, bool &write) {
+void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write) {
     int hitInd = searchTagArray(set, tag), replaceInd;
     if (hitInd != -1) {//cache hit
         cacheTrees[set].read(hitInd);
-        if(write) 
+        if (write)
             cache[set][hitInd].dirty = 1;
-    }else{//miss
+    } else {//miss
         CacheBlock b;
         b.tag = tag;
-        b.valid =1;
+        b.valid = 1;
         replaceInd = cacheTrees[set].replace();
 
         ++cacheMiss;
-        if(seenAddresses.find({tag,set})!=seenAddresses.end())
+        if (seenAddresses.find({tag, set}) != seenAddresses.end())
             confMiss++;
         else
             ++compMiss;
 
-        if(cache[set][replaceInd].dirty==1)
+        if (cache[set][replaceInd].dirty == 1)
             ++dirtyEvict;
 
 
-        if(write){
+        if (write) {
             b.dirty = 1;
             cache[set][replaceInd] = b;
             writeMiss++;
-        }else{
+        } else {
             b.dirty = 0;
             cache[set][replaceInd] = b;
             readMiss++;
+        }
+    }
+
+
+}
+
+void Cache::RandomRW(const string &tag, const unsigned long &set, bool &write) {
+    int present = searchTagArray(set, tag);
+    if (present >= 0) {
+        if (write)
+            cache[set][present].dirty = 1;
+
+    } else {
+        CacheBlock b;
+        b.tag = tag;
+        b.valid = 1;
+        if (write) {
+            b.dirty = 1;
+        } else {
+            b.dirty = 0;
+        }
+        int vacant;
+        for (vacant = 0; vacant < ways; vacant++)
+            if (cache[set][vacant].valid == 0)
+                break;
+        if (vacant < ways) {
+            cache[set][vacant] = b;
+            compMiss++;
+        } else {
+            vacant = rand() % ways;
+            if (seenAddresses.find({tag, set}) != seenAddresses.end())
+                confMiss++;
+            else
+                ++compMiss;
+            if (cache[set][vacant].dirty == 1)
+                dirtyEvict++;
+            cache[set][vacant] = b;
+        }
     }
 }
 
+void Cache::DirectMappedRW(const string &tag, const unsigned long &set, bool &write) {
+    CacheBlock b;
+    b.tag = tag;
+    b.valid = 1;
+    int present = searchTagArray(set, tag);
+    if (present == 0) {
+        if (write)
+            cache[set][0].dirty = 1;
 
-}
 
-void Cache::RandomRW(const string& tag, const unsigned long &set, bool &write)
-{
-	int present  = searchTagArray(set, tag);
-	if(present>=0)
-	{
-		if(write)
-			cache[set][present].dirty = 1;
+    } else {
+        ++cacheMiss;
+        if (seenAddresses.find({tag, set}) != seenAddresses.end())
+            confMiss++;
+        else
+            ++compMiss;
 
-	}
-	else
-	{
-		CacheBlock b;
-		b.tag = tag;
-		b.valid = 1;
-		if(write)
-		{
-			b.dirty=1;
-		}
-		else
-		{
-			b.dirty=0;
-		}
-		int vacant;
-		for(vacant = 0; vacant < ways; vacant++)
-			if(cache[set][vacant].valid == 0)
-				break;
-		if(vacant < ways)
-		{
-			cache[set][vacant] = b;
-			compMiss++;
-		}
-		else
-		{
-			vacant = rand() % ways;
-			if(seenAddresses.find({tag,set})!=seenAddresses.end())
-	           		confMiss++;
-	        	else
-	            		++compMiss;
-	            	if(cache[set][vacant].dirty==1)
-	            		dirtyEvict++;
-	            	cache[set][vacant] = b;
-		}
-	}
-}
-
-void Cache::DirectMappedRW(const string& tag, const unsigned long &set, bool &write)
-{
-	CacheBlock b;
-	b.tag = tag;
-	b.valid = 1;
-	int present  = searchTagArray(set, tag);
-	if(present==0)
-	{
-		if(write)
-			cache[set][0].dirty = 1;
-		
-
-	}
-	else
-	{   
-		++cacheMiss;
-	        if(seenAddresses.find({tag,set})!=seenAddresses.end())
-	            confMiss++;
-	        else
-	            ++compMiss;
-
-		if(write)
-		{
-			b.dirty = 1;
-			cache[set][0] = b;
-			writeMiss++;
-		}
-		else
-		{
-			b.dirty = 0;
-			cache[set][0] = b;
-			readMiss++;
-		}
-	}
-}
-
-string Cache::addressConversion(string address)
-{
-	string ba;
-	int l = address.length();
-	char ch;
-    	for (int i = 0; i < l; i++) { 
-        	ch = address.at(i);
-        	switch(ch){
-        		case '0': ba = ba + "0000";
-        		continue;
-        		case '1': ba = ba + "0001";
-        		continue;
-        		case '2': ba = ba + "0010";
-        		continue;
-        		case '3': ba = ba + "0011";
-        		continue;
-        		case '4': ba = ba + "0100";
-        		continue;
-        		case '5': ba = ba + "0101";
-        		continue;
-        		case '6': ba = ba + "0110";
-        		continue;
-        		case '7': ba = ba + "0111";
-        		continue;
-        		case '8': ba = ba + "1000";
-        		continue;
-        		case '9': ba = ba + "1001";
-        		continue;
-        		case 'A': ba = ba + "1010";
-        		continue;
-        		case 'B': ba = ba + "1011";
-        		continue;
-        		case 'C': ba = ba + "1100";
-        		continue;
-        		case 'D': ba = ba + "1101";
-        		continue;
-        		case 'E': ba = ba + "1110";
-        		continue;
-        		case 'F': ba = ba + "1111";
-        		continue;
-        	}
+        if (write) {
+            b.dirty = 1;
+            cache[set][0] = b;
+            writeMiss++;
+        } else {
+            b.dirty = 0;
+            cache[set][0] = b;
+            readMiss++;
         }
-        return ba;
+    }
 }
 
-void Cache::load(string address)
-{
-	string binaryAddress = addressConversion(address);
-    string setStr = binaryAddress.substr(32-blockOffset-setOffset, setOffset);
+string Cache::addressConversion(string address) {
+    string ba;
+    int l = address.length();
+    char ch;
+    for (int i = 2; i < l; i++) {
+        ch = address.at(i);
+        switch (ch) {
+            case '0':
+                ba = ba + "0000";
+                continue;
+            case '1':
+                ba = ba + "0001";
+                continue;
+            case '2':
+                ba = ba + "0010";
+                continue;
+            case '3':
+                ba = ba + "0011";
+                continue;
+            case '4':
+                ba = ba + "0100";
+                continue;
+            case '5':
+                ba = ba + "0101";
+                continue;
+            case '6':
+                ba = ba + "0110";
+                continue;
+            case '7':
+                ba = ba + "0111";
+                continue;
+            case '8':
+                ba = ba + "1000";
+                continue;
+            case '9':
+                ba = ba + "1001";
+                continue;
+            case 'A':
+                ba = ba + "1010";
+                continue;
+            case 'B':
+                ba = ba + "1011";
+                continue;
+            case 'C':
+                ba = ba + "1100";
+                continue;
+            case 'D':
+                ba = ba + "1101";
+                continue;
+            case 'E':
+                ba = ba + "1110";
+                continue;
+            case 'F':
+                ba = ba + "1111";
+                continue;
+        }
+    }
+    return ba;
+}
+
+void Cache::load(string address, char rw) {
+    string binaryAddress = addressConversion(address);
+    string setStr = binaryAddress.substr(32 - blockOffset - setOffset, setOffset);
     bitset<5> setBitSet(setStr);
 
     unsigned long set = setBitSet.to_ulong();
-    bool write = address.at(0)=='1';
-    string tag = binaryAddress.substr(1,31-blockOffset-setOffset);
+    bool write = rw=='w';
+    string tag = binaryAddress.substr(0, 32 - blockOffset - setOffset);//check if this change is right
 
-    ++cacheRef; 
-	if(write)
-		writeAcc++;
-	else
-   		readAcc++;
+    ++cacheRef;
+    if (write)
+        writeAcc++;
+    else
+        readAcc++;
 
-	if(ways==1)
-	{
-		DirectMappedRW(tag, set, write);
-	}
-	else if(replacementPolicy == 0)
-	{
-		RandomRW(tag, set, write);
-	}
-	else if(replacementPolicy == 1)
-	{
-		LRURW(tag, set, write);
-	}
-	else
-	{
+    if (ways == 1) {
+        DirectMappedRW(tag, set, write);
+    } else if (replacementPolicy == 0) {
+        RandomRW(tag, set, write);
+    } else if (replacementPolicy == 1) {
+        LRURW(tag, set, write);
+    } else {
         PsuedoLRURW(tag, set, write);
-	}
-	seenAddresses.emplace(make_pair(tag,set));
+    }
+    seenAddresses.emplace(make_pair(tag, set));
 }
 
 
-
 int main() {
-    Cache c;
+    long cacheSize, cacheLine;
+    int ways, repPolicy;
+    stringstream ss;
     string inp;
-    cin >> inp;
-    ifstream addresses(inp);
-    while (getline(addresses, inp))
-        c.load(inp);
-    addresses.close();
+    getline(cin, inp);
+    ss << inp;
+    ss >> cacheSize;
+    ss.str(std::string());
+    ss.clear();
+    getline(cin, inp);
+    ss << inp;
+    ss >> cacheLine;
+    ss.str(std::string());
+    ss.clear();
+    getline(cin, inp);
+    ss << inp;
+    ss >> ways;
+    ss.str(std::string());
+    ss.clear();
+    getline(cin, inp);
+    ss << inp;
+    ss >> repPolicy;
+    ss.str(std::string());
+    ss.clear();
+
+    Cache c(cacheSize, cacheLine, ways, repPolicy);
+
+    cin>>inp;
+    ifstream addressFile(inp);
+    char rw;
+    addressFile>>inp;
+    while (!addressFile.eof()) {
+        addressFile>>rw;
+        c.load(inp, rw);
+    }
+    addressFile.close();
+
+//    ofstream outputFile("counterResult.txt");
+
     return 0;
 }

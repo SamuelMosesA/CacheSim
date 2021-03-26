@@ -417,28 +417,8 @@ void Cache::load(string address, char rw) {
 int main() {
     long cacheSize, cacheLine;
     int ways, repPolicy;
-    stringstream ss;
     string inp;
-    getline(cin, inp);
-    ss << inp;
-    ss >> cacheSize;
-    ss.str(std::string());
-    ss.clear();
-    getline(cin, inp);
-    ss << inp;
-    ss >> cacheLine;
-    ss.str(std::string());
-    ss.clear();
-    getline(cin, inp);
-    ss << inp;
-    ss >> ways;
-    ss.str(std::string());
-    ss.clear();
-    getline(cin, inp);
-    ss << inp;
-    ss >> repPolicy;
-    ss.str(std::string());
-    ss.clear();
+    cin>>cacheSize>>cacheLine>>ways>>repPolicy;
 
     Cache c(cacheSize, cacheLine, ways, repPolicy);
 
@@ -452,7 +432,45 @@ int main() {
     }
     addressFile.close();
 
-//    ofstream outputFile("counterResult.txt");
+    ofstream outputFile("counterResult.txt");
+    outputFile<<cacheSize<<endl;
+    outputFile<<cacheLine<<endl;
+    switch (ways) {
+        case 0:
+            outputFile<<"Fully-associative cache"<<endl;
+            break;
+        case 1:
+            outputFile<<"Direct-mapped cache"<<endl;
+            break;
+        default:
+            outputFile<<"Set-associative cache"<<endl;
+            break;
+    }
+    switch (repPolicy) {
+        case 0:
+            outputFile<<"Random Replacement"<<endl;
+            break;
+        case 1:
+            outputFile<<"LRU Replacement"<<endl;
+            break;
+        case 2:
+            outputFile<<"Pseudo-LRU Replacement"<<endl;
+            break;
+        default:
+            break;
+    }
+    outputFile<<cacheRef<<endl;
+    outputFile<<readAcc<<endl;
+    outputFile<<writeAcc<<endl;
+    outputFile<<cacheMiss<<endl;
+    outputFile<<compMiss<<endl;
+    outputFile<<capMiss<<endl;
+    outputFile<<confMiss<<endl;
+    outputFile<<readMiss<<endl;
+    outputFile<<writeMiss<<endl;
+    outputFile<<dirtyEvict<<endl;
+
+    outputFile.close();
 
     return 0;
 }

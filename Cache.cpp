@@ -7,11 +7,11 @@
 #include <list>
 #include <iterator>
 #include <utility>
-#include <sstream>
 
 
 using namespace std;
 
+//counters
 long int cacheRef, cacheMiss, readAcc, writeAcc, compMiss, capMiss, confMiss, readMiss, writeMiss, dirtyEvict;
 
 struct CacheBlock {
@@ -39,7 +39,7 @@ CacheBlock::CacheBlock(string t, int v, int d) {
 class PLRUTree {
 
     int n, k; //n = 2^k -1 elements
-    vector<bool> tree;
+    vector<bool> tree; //array for binary tree
 
     static int left(int i) {
         return 2 * i + 1;
@@ -51,14 +51,14 @@ class PLRUTree {
 
 
 public:
-    PLRUTree(int assc, int k);
+    PLRUTree(long assc, int k);
 
     int replace();
 
     void read(int ind);
 };
 
-PLRUTree::PLRUTree(int assc, int k) {
+PLRUTree::PLRUTree(long assc, int k) {
     n = assc - 1;
     this->k = k;
     tree.resize(n, 0);
@@ -66,21 +66,25 @@ PLRUTree::PLRUTree(int assc, int k) {
 
 int PLRUTree::replace() {
     int i = 0;
-    while (i < n) {
+    while (i < n) {//if i is the the tree part
         bool bit = tree[i];
-        tree[i] = !bit;
-        if (bit) {
+        tree[i] = !bit; //all the bits in path accessed are flipped
+        if (bit) { //if bit is 1 move to the right
             i = right(i);
-        } else {
+        } else {//else move left
             i = left(i);
         }
     }
 
-    return i - n;
+    return i - n; //the cache is in the last part. we are renumbering the cache from 0 by subtracting n
 }
 
 void PLRUTree::read(int ind) {
     int i = 0;
+    //we traverse by using the binary representation of the index
+    //if MSB is 1 move right, else move left
+    //then we do the same for the next bin digit
+    //we also make the bits in tree opposite to the path travelled
     for (int j = k; j >= 0; --j) {
         bool bit = (ind & (1 << j)) > 0;
         tree[i] = !bit;
@@ -100,7 +104,7 @@ class Cache {
     long capacity;
     long sets;
     long size;
-    int ways;
+    long ways;
     int replacementPolicy;
     long block;
     int blockOffset;
@@ -121,19 +125,21 @@ protected:
     int searchTagArray(unsigned int set, const string &tag);
 
 public:
-    Cache(long s, long b, int w, int r);
+    Cache(long s, long b, long w, int r);
 
     void load(string address, char rw);
 };
 
-Cache::Cache(long s, long b, int w, int r) {
-    size = s;
+Cache::Cache(long s, long b, long w, int r) {
+    size = s; //init the size, block, ways and rep policy
     block = b;
     ways = w;
     replacementPolicy = r;
     capacity = size / block;
-    if (ways == 0) {
+    if (ways == 0) {//fully associative cache
         sets = 1;
+        ways = capacity;
+
         if (ways >= 2 && replacementPolicy == 1) {
             LRUList.resize(1);
             LRUList[0].resize(capacity);
@@ -141,7 +147,6 @@ Cache::Cache(long s, long b, int w, int r) {
             cache.resize(1);
             cache[0].resize(capacity);
         }
-        ways = capacity;
 
     } else {
         sets = capacity / ways;
@@ -158,27 +163,27 @@ Cache::Cache(long s, long b, int w, int r) {
         }
     }
 
-    blockOffset = 0;
-    for (int j = 2; j <= block; j*=2)
+    blockOffset = 0; //calculating number of bits for block and set in the address
+    for (int j = 2; j <= block; j *= 2)
         blockOffset++;
     setOffset = 0;
-    for (int l = 2; l <= sets; l*=2)
+    for (int l = 2; l <= sets; l *= 2)
         setOffset++;
 
-    if (ways >= 2 && replacementPolicy == 2) {
+    if (ways >= 2 && replacementPolicy == 2) { //if replacement policy is Pseudo LRU
         int k = 0;
-        while ((ways & (1 << k)) == 0)
+        while ((ways & (1 << k)) == 0)//calculating the number of bits to represent associativity in binary
             ++k;
-        cacheTrees.resize(sets, PLRUTree(ways, k));
+        cacheTrees.resize(sets, PLRUTree(ways, k)); //init the PseudoLRU trees for each set
     }
 }
 
 int Cache::searchTagArray(unsigned int set, const string &tag) {
-    int res = -1;
+    int res = -1; //if no tag is found, this is the value returned
     auto currSet = cache[set];
 
     for (int i = 0; i < ways; ++i) {
-        if (currSet[i].valid == 1 && currSet[i].tag == tag) {
+        if (currSet[i].valid == 1 && currSet[i].tag == tag) {//if the block is valid and the tag matches
             res = i;
             break;
         }
@@ -231,25 +236,28 @@ void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write
     if (hitInd != -1) {//cache hit
         cacheTrees[set].read(hitInd);
         if (write)
-            cache[set][hitInd].dirty = 1;
+            cache[set][hitInd].dirty = 1;//set bit to dirty
     } else {//miss
-        CacheBlock b;
+        ++cacheMiss;//it is a cache miss
+
+        CacheBlock b; //replacing block
         b.tag = tag;
-        b.valid = 1;
+        b.valid = 1; //the replacing block is valid
         replaceInd = cacheTrees[set].replace();
 
-        ++cacheMiss;
         if (seenAddresses.find({tag, set}) != seenAddresses.end())
             confMiss++;
+        //if the block was already on the cache and was evicted it is conflict miss
         else
             ++compMiss;
+        //else it is a compulsory miss
 
-        if (cache[set][replaceInd].dirty == 1)
+        if (cache[set][replaceInd].dirty == 1) //if the victim is a dirty block
             ++dirtyEvict;
 
 
         if (write) {
-            b.dirty = 1;
+            b.dirty = 1; //if write, the block will be dirty after it is brought into cache and data written
             cache[set][replaceInd] = b;
             writeMiss++;
         } else {
@@ -394,8 +402,8 @@ void Cache::load(string address, char rw) {
     bitset<32> setBitSet(setStr);
 
     unsigned long set = setBitSet.to_ulong();
-    bool write = rw=='w';
-    string tag = binaryAddress.substr(0, 32 - blockOffset - setOffset);//check if this change is right
+    bool write = rw == 'w';
+    string tag = binaryAddress.substr(0, 32 - blockOffset - setOffset);
 
 
 
@@ -419,61 +427,62 @@ void Cache::load(string address, char rw) {
 
 
 int main() {
+    cacheRef = cacheMiss = readAcc = writeAcc = compMiss = capMiss = confMiss = readMiss = writeMiss = dirtyEvict = 0;
     long cacheSize, cacheLine;
     int ways, repPolicy;
     string inp;
-    cin>>cacheSize>>cacheLine>>ways>>repPolicy;
+    cin >> cacheSize >> cacheLine >> ways >> repPolicy;
 
     Cache c(cacheSize, cacheLine, ways, repPolicy);
 
-    cin>>inp;
+    cin >> inp;
     ifstream addressFile(inp);
     char rw;
-    addressFile>>inp;
+    addressFile >> inp;
     while (!addressFile.eof()) {
-        addressFile>>rw;
+        addressFile >> rw;
         c.load(inp, rw);
-        addressFile>>inp;
+        addressFile >> inp;
     }
     addressFile.close();
 
     ofstream outputFile("counterResult.txt");
-    outputFile<<cacheSize<<endl;
-    outputFile<<cacheLine<<endl;
+    outputFile << cacheSize << endl;
+    outputFile << cacheLine << endl;
     switch (ways) {
         case 0:
-            outputFile<<"Fully-associative cache"<<endl;
+            outputFile << "Fully-associative cache" << endl;
             break;
         case 1:
-            outputFile<<"Direct-mapped cache"<<endl;
+            outputFile << "Direct-mapped cache" << endl;
             break;
         default:
-            outputFile<<"Set-associative cache"<<endl;
+            outputFile << "Set-associative cache" << endl;
             break;
     }
     switch (repPolicy) {
         case 0:
-            outputFile<<"Random Replacement"<<endl;
+            outputFile << "Random Replacement" << endl;
             break;
         case 1:
-            outputFile<<"LRU Replacement"<<endl;
+            outputFile << "LRU Replacement" << endl;
             break;
         case 2:
-            outputFile<<"Pseudo-LRU Replacement"<<endl;
+            outputFile << "Pseudo-LRU Replacement" << endl;
             break;
         default:
             break;
     }
-    outputFile<<cacheRef<<endl;
-    outputFile<<readAcc<<endl;
-    outputFile<<writeAcc<<endl;
-    outputFile<<cacheMiss<<endl;
-    outputFile<<compMiss<<endl;
-    outputFile<<capMiss<<endl;
-    outputFile<<confMiss<<endl;
-    outputFile<<readMiss<<endl;
-    outputFile<<writeMiss<<endl;
-    outputFile<<dirtyEvict<<endl;
+    outputFile << cacheRef << endl;
+    outputFile << readAcc << endl;
+    outputFile << writeAcc << endl;
+    outputFile << cacheMiss << endl;
+    outputFile << compMiss << endl;
+    outputFile << capMiss << endl;
+    outputFile << confMiss << endl;
+    outputFile << readMiss << endl;
+    outputFile << writeMiss << endl;
+    outputFile << dirtyEvict << endl;
 
     outputFile.close();
 

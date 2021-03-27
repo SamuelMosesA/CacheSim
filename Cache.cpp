@@ -374,21 +374,27 @@ string Cache::addressConversion(string address) {
                 ba = ba + "1001";
                 continue;
             case 'a':
+            case 'A':
                 ba = ba + "1010";
                 continue;
             case 'b':
+            case 'B':
                 ba = ba + "1011";
                 continue;
             case 'c':
+            case 'C':
                 ba = ba + "1100";
                 continue;
             case 'd':
+            case 'D':
                 ba = ba + "1101";
                 continue;
             case 'e':
+            case 'E':
                 ba = ba + "1110";
                 continue;
             case 'f':
+            case 'F':
                 ba = ba + "1111";
                 continue;
         }
@@ -398,31 +404,31 @@ string Cache::addressConversion(string address) {
 
 void Cache::load(string address, char rw) {
     string binaryAddress = addressConversion(address);
-    string setStr = binaryAddress.substr(32 - blockOffset - setOffset, setOffset);
+    string setStr = binaryAddress.substr(32 - blockOffset - setOffset, setOffset); //getting the set part
     bitset<32> setBitSet(setStr);
 
     unsigned long set = setBitSet.to_ulong();
     bool write = rw == 'w';
-    string tag = binaryAddress.substr(0, 32 - blockOffset - setOffset);
+    string tag = binaryAddress.substr(0, 32 - blockOffset - setOffset); //getting the tag part
 
 
-
+    //incrementing access related counters
     ++cacheRef;
     if (write)
         writeAcc++;
     else
         readAcc++;
 
-    if (ways == 1) {
+    if (ways == 1) {//if direct mapped cache
         DirectMappedRW(tag, set, write);
-    } else if (replacementPolicy == 0) {
+    } else if (replacementPolicy == 0) { //if random policy
         RandomRW(tag, set, write);
-    } else if (replacementPolicy == 1) {
+    } else if (replacementPolicy == 1) { //if LRU policy
         LRURW(tag, set, write);
-    } else {
+    } else {//if pseudo-LRU plicy
         PsuedoLRURW(tag, set, write);
     }
-    seenAddresses.emplace(make_pair(tag, set));
+    seenAddresses.emplace(make_pair(tag, set)); //adding to the set of seen blocks
 }
 
 
@@ -431,15 +437,15 @@ int main() {
     long cacheSize, cacheLine;
     int ways, repPolicy;
     string inp;
-    cin >> cacheSize >> cacheLine >> ways >> repPolicy;
+    cin >> cacheSize >> cacheLine >> ways >> repPolicy; //getting input for cache structure
 
-    Cache c(cacheSize, cacheLine, ways, repPolicy);
+    Cache c(cacheSize, cacheLine, ways, repPolicy);//init the cache object
 
     cin >> inp;
-    ifstream addressFile(inp);
+    ifstream addressFile(inp); //opening file with addresses
     char rw;
     addressFile >> inp;
-    while (!addressFile.eof()) {
+    while (!addressFile.eof()) {//reading the addresses from file
         addressFile >> rw;
         c.load(inp, rw);
         addressFile >> inp;

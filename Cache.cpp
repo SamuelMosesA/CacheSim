@@ -197,42 +197,56 @@ int Cache::searchTagArray(unsigned int set, const string &tag) {
 void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
     list<CacheBlock>::iterator it;
     int v, d;
-    for (it = LRUList[set].begin(); it != LRUList[set].end(); it++) {
-        if (it->tag == tag) {            // Cache hit
-            v = (*it).valid;
-            d = write & (it->dirty);
-            LRUList[set].erase(it);
+    bool found = false;
+    for(it = LRUList[set].begin(); it != LRUList[set].end(); ++it){
+        if(it->valid==1 && it->tag==tag){
+            v = 1;
+            d = (write || it->dirty);
+            found = true;
             break;
         }
     }
-    if (it == LRUList[set].end()) {            // Element not in cache
-        cacheMiss++;
-        write ? writeMiss++ : readMiss++;
+
+    if(found){
+        it = LRUList[set].erase(it);
+        LRUList[set].emplace_back(tag,v,d);
+    }else{
+        ++cacheMiss;
+        if(write) {
+            ++writeMiss;
+            d = 1;
+        }
+        else {
+            ++readMiss;
+            d = 0;
+        }
+
         if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
+            //if the block was already on the cache and was evicted it is conflict miss
+            //or numBlocks miss in fully associative
             if (sets == 1)
                 ++capMiss;
             else
                 confMiss++;
         } else
             ++compMiss;
-        it = LRUList[set].begin();
-        while (it->valid == 1 && it != LRUList[set].end()) it++;
-        if (it != LRUList[set].end() && it->valid == 0) {        // Found unassigned cache block
-            LRUList[set].erase(it);
-            v = 1;
-            d = write;
-        } else {                    // Cache is full
-            CacheBlock temp = LRUList[set].back();
-            if (temp.dirty) {            // Dirty block eviction
-                dirtyEvict++;
+
+        bool foundInvalid = false;
+        for(it = LRUList[set].begin(); it!= LRUList[set].end(); ++it){
+            if(it->valid == 0){
+                foundInvalid = true;
+                break;
             }
-            LRUList.pop_back();        // Remove last element
-            v = 1;
-            d = write;
+        }
+        if(foundInvalid){
+            it = LRUList[set].erase(it);
+            LRUList[set].emplace_back(tag,v,d);
+        }else{
+            LRUList[set].pop_front();
+            LRUList[set].emplace_back(tag,v,d);
         }
     }
-    CacheBlock newBlock = {tag, v, d};
-    LRUList[set].emplace_front(newBlock);
+
 }
 
 void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write) {

@@ -12,7 +12,7 @@
 using namespace std;
 
 //counters
-long int cacheRef, cacheMiss, readAcc, writeAcc, compMiss, capMiss, confMiss, readMiss, writeMiss, dirtyEvict;
+long long int cacheRef, cacheMiss, readAcc, writeAcc, compMiss, capMiss, confMiss, readMiss, writeMiss, dirtyEvict;
 
 struct CacheBlock {
     string tag;
@@ -128,7 +128,7 @@ protected:
 public:
     Cache(long s, long b, long w, int r);
 
-    void load(string address, char rw);
+    void load(string &address, char rw);
 };
 
 Cache::Cache(long s, long b, long w, int r) {
@@ -173,10 +173,10 @@ Cache::Cache(long s, long b, long w, int r) {
         setOffset++;
 
     if (ways >= 2 && replacementPolicy == 2) { //if replacement policy is Pseudo LRU
-        int k = 0;
-        while ((ways & (1 << k)) == 0)//calculating the number of bits to represent associativity in binary
-            ++k;
-        cacheTrees.resize(sets, PLRUTree(ways, k)); //init the PseudoLRU trees for each set
+        int wayOffset = 0;
+        for (int k = 2; k <= sets; k *= 2)
+            ++wayOffset;//calculating the number of bits to represent associativity in binary
+        cacheTrees.resize(sets, PLRUTree(ways, wayOffset)); //init the PseudoLRU trees for each set
     }
 }
 
@@ -208,6 +208,13 @@ void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
     if (it == LRUList[set].end()) {            // Element not in cache
         cacheMiss++;
         write ? writeMiss++ : readMiss++;
+        if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
+            if (sets == 1)
+                ++capMiss;
+            else
+                confMiss++;
+        } else
+            ++compMiss;
         it = LRUList[set].begin();
         while (it->valid == 1 && it != LRUList[set].end()) it++;
         if (it != LRUList[set].end() && it->valid == 0) {        // Found unassigned cache block
@@ -215,13 +222,6 @@ void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
             v = 1;
             d = write;
         } else {                    // Cache is full
-            if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
-                if (sets == 1)
-                    ++capMiss;
-                else
-                    confMiss++;
-            } else
-                ++compMiss;
             CacheBlock temp = LRUList[set].back();
             if (temp.dirty) {            // Dirty block eviction
                 dirtyEvict++;
@@ -267,11 +267,11 @@ void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write
         if (write) {
             b.dirty = 1; //if write, the block will be dirty after it is brought into cache and data written
             cache[set][replaceInd] = b;
-            writeMiss++;
+            ++writeMiss;
         } else {
             b.dirty = 0;
             cache[set][replaceInd] = b;
-            readMiss++;
+            ++readMiss;
         }
     }
 
@@ -288,10 +288,13 @@ void Cache::RandomRW(const string &tag, const unsigned long &set, bool &write) {
         CacheBlock b;
         b.tag = tag;
         b.valid = 1;
+        ++cacheMiss;
         if (write) {
             b.dirty = 1;
+            ++writeMiss;
         } else {
             b.dirty = 0;
+            ++readMiss;
         }
         int vacant;
         for (vacant = 0; vacant < ways; vacant++)
@@ -420,7 +423,7 @@ string Cache::addressConversion(string address) {
     return ba;
 }
 
-void Cache::load(string address, char rw) {
+void Cache::load(string &address, char rw) {
     string binaryAddress = addressConversion(address);
     string setStr = binaryAddress.substr(32 - blockOffset - setOffset, setOffset); //getting the set part
     bitset<32> setBitSet(setStr);
@@ -443,10 +446,10 @@ void Cache::load(string address, char rw) {
         RandomRW(tag, set, write);
     } else if (replacementPolicy == 1) { //if LRU policy
         LRURW(tag, set, write);
-    } else {//if pseudo-LRU plicy
+    } else {//if pseudo-LRU policy
         PsuedoLRURW(tag, set, write);
     }
-    seenAddresses.emplace(make_pair(tag, set)); //adding to the set of seen blocks
+    seenAddresses.emplace(tag, set); //adding to the set of seen blocks
 }
 
 
@@ -463,10 +466,11 @@ int main() {
     ifstream addressFile(inp); //opening file with addresses
     char rw;
     addressFile >> inp;
+    addressFile >> rw;
     while (!addressFile.eof()) {//reading the addresses from file
-        addressFile >> rw;
         c.load(inp, rw);
         addressFile >> inp;
+        addressFile >> rw;
     }
     addressFile.close();
 

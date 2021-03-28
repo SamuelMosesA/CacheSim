@@ -39,7 +39,7 @@ CacheBlock::CacheBlock(string t, int v, int d) {
 class PLRUTree {
 
     long n;
-    int k; //n = 2^k -1 elements
+    int k; //n = 2^k ways
     vector<bool> tree; //array for binary tree
 
     static long left(long i) {
@@ -86,7 +86,7 @@ void PLRUTree::read(long ind) {
     //if MSB is 1 move right, else move left
     //then we do the same for the next bin digit
     //we also make the bits in tree opposite to the path travelled
-    for (int j = k; j >= 0; --j) {
+    for (int j = k-1; j >= 0; --j) {
         bool bit = (ind & (1 << j)) > 0;
         tree[i] = !bit;
         if (bit)
@@ -174,7 +174,7 @@ Cache::Cache(long s, long b, long w, int r) {
 
     if (ways >= 2 && replacementPolicy == 2) { //if replacement policy is Pseudo LRU
         int wayOffset = 0;
-        for (int k = 2; k <= sets; k *= 2)
+        for (int k = 2; k <= ways; k *= 2)
             ++wayOffset;//calculating the number of bits to represent associativity in binary
         cacheTrees.resize(sets, PLRUTree(ways, wayOffset)); //init the PseudoLRU trees for each set
     }

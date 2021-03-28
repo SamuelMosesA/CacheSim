@@ -38,14 +38,15 @@ CacheBlock::CacheBlock(string t, int v, int d) {
 
 class PLRUTree {
 
-    int n, k; //n = 2^k -1 elements
+    long n;
+    int k; //n = 2^k -1 elements
     vector<bool> tree; //array for binary tree
 
-    static int left(int i) {
+    static long left(long i) {
         return 2 * i + 1;
     }
 
-    static int right(int i) {
+    static long right(long i) {
         return 2 * i + 2;
     }
 
@@ -53,9 +54,9 @@ class PLRUTree {
 public:
     PLRUTree(long assc, int k);
 
-    int replace();
+    long replace();
 
-    void read(int ind);
+    void read(long ind);
 };
 
 PLRUTree::PLRUTree(long assc, int k) {
@@ -64,8 +65,8 @@ PLRUTree::PLRUTree(long assc, int k) {
     tree.resize(n, 0);
 }
 
-int PLRUTree::replace() {
-    int i = 0;
+long PLRUTree::replace() {
+    long i = 0;
     while (i < n) {//if i is the the tree part
         bool bit = tree[i];
         tree[i] = !bit; //all the bits in path accessed are flipped
@@ -79,8 +80,8 @@ int PLRUTree::replace() {
     return i - n; //the cache is in the last part. we are renumbering the cache from 0 by subtracting n
 }
 
-void PLRUTree::read(int ind) {
-    int i = 0;
+void PLRUTree::read(long ind) {
+    long i = 0;
     //we traverse by using the binary representation of the index
     //if MSB is 1 move right, else move left
     //then we do the same for the next bin digit
@@ -101,7 +102,7 @@ class Cache {
     vector<vector<CacheBlock>> cache;
     vector<list<CacheBlock>> LRUList;
     vector<PLRUTree> cacheTrees;
-    long capacity;
+    long numBlocks;
     long sets;
     long size;
     long ways;
@@ -120,7 +121,7 @@ protected:
 
     void DirectMappedRW(const string &tag, const unsigned long &set, bool &write);
 
-    string addressConversion(string address);
+    static string addressConversion(string address);
 
     int searchTagArray(unsigned int set, const string &tag);
 
@@ -135,21 +136,22 @@ Cache::Cache(long s, long b, long w, int r) {
     block = b;
     ways = w;
     replacementPolicy = r;
-    capacity = size / block;
+    numBlocks = size / block;
     if (ways == 0) {//fully associative cache
+        //equivalent set and ways
         sets = 1;
-        ways = capacity;
-
+        ways = numBlocks;
+        //A different structure LRU list is used when policy is LRU
         if (ways >= 2 && replacementPolicy == 1) {
             LRUList.resize(1);
-            LRUList[0].resize(capacity);
+            LRUList[0].resize(numBlocks);
         } else {
             cache.resize(1);
-            cache[0].resize(capacity);
+            cache[0].resize(numBlocks);
         }
 
     } else {
-        sets = capacity / ways;
+        sets = numBlocks / ways;
         if (ways >= 2 && replacementPolicy == 1) {
             LRUList.resize(sets);
             for (int i = 0; i < sets; i++) {
@@ -213,11 +215,13 @@ void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
             v = 1;
             d = write;
         } else {                    // Cache is full
-            if (seenAddresses.find({tag, set}) != seenAddresses.end())
-                confMiss++;
-            else
+            if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
+                if (sets == 1)
+                    ++capMiss;
+                else
+                    confMiss++;
+            } else
                 ++compMiss;
-            if (sets == 1) capMiss++;
             CacheBlock temp = LRUList[set].back();
             if (temp.dirty) {            // Dirty block eviction
                 dirtyEvict++;
@@ -232,7 +236,7 @@ void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
 }
 
 void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write) {
-    int hitInd = searchTagArray(set, tag), replaceInd;
+    long hitInd = searchTagArray(set, tag), replaceInd;
     if (hitInd != -1) {//cache hit
         cacheTrees[set].read(hitInd);
         if (write)
@@ -245,10 +249,14 @@ void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write
         b.valid = 1; //the replacing block is valid
         replaceInd = cacheTrees[set].replace();
 
-        if (seenAddresses.find({tag, set}) != seenAddresses.end())
-            confMiss++;
-        //if the block was already on the cache and was evicted it is conflict miss
-        else
+        if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
+            //if the block was already on the cache and was evicted it is conflict miss
+            //or numBlocks miss in fully associative
+            if (sets == 1)
+                ++capMiss;
+            else
+                confMiss++;
+        } else
             ++compMiss;
         //else it is a compulsory miss
 
@@ -294,9 +302,14 @@ void Cache::RandomRW(const string &tag, const unsigned long &set, bool &write) {
             compMiss++;
         } else {
             vacant = rand() % ways;
-            if (seenAddresses.find({tag, set}) != seenAddresses.end())
-                confMiss++;
-            else
+            if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
+                //if the block was already on the cache and was evicted it is conflict miss
+                //or numBlocks miss in fully associative
+                if (sets == 1)
+                    ++capMiss;
+                else
+                    confMiss++;
+            } else
                 ++compMiss;
             if (cache[set][vacant].dirty == 1)
                 dirtyEvict++;
@@ -316,9 +329,14 @@ void Cache::DirectMappedRW(const string &tag, const unsigned long &set, bool &wr
 
     } else {
         ++cacheMiss;
-        if (seenAddresses.find({tag, set}) != seenAddresses.end())
-            confMiss++;
-        else
+        if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
+            //if the block was already on the cache and was evicted it is conflict miss
+            //or numBlocks miss in fully associative
+            if (sets == 1)
+                ++capMiss;
+            else
+                confMiss++;
+        } else
             ++compMiss;
 
         if (cache[set][0].dirty == 1)

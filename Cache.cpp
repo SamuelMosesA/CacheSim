@@ -279,16 +279,16 @@ void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write
 
 void Cache::RandomRW(const string &tag, const unsigned long &set, bool &write) {
     int present = searchTagArray(set, tag);
-    if (present >= 0) {
+    if (present >= 0) { //  block found in cache
         if (write)
             cache[set][present].dirty = 1;
 
-    } else {
+    } else {    // block not found in stack
         CacheBlock b;
         b.tag = tag;
         b.valid = 1;
         ++cacheMiss;
-        if (write) {
+        if (write) {    //  checking if write miss or read miss
             b.dirty = 1;
             ++writeMiss;
         } else {
@@ -296,14 +296,14 @@ void Cache::RandomRW(const string &tag, const unsigned long &set, bool &write) {
             ++readMiss;
         }
         int vacant;
-        for (vacant = 0; vacant < ways; vacant++)
+        for (vacant = 0; vacant < ways; vacant++)   //  checking for any vacant line before carrying out replacement
             if (cache[set][vacant].valid == 0)
                 break;
-        if (vacant < ways) {
+        if (vacant < ways) {    //  if a vacant line is present, compulsory miss
             cache[set][vacant] = b;
             compMiss++;
-        } else {
-            vacant = rand() % ways;
+        } else {    //  conflict/capacity miss
+            vacant = rand() % ways; //  choosing block to evict randomly
             if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
                 //if the block was already on the cache and was evicted it is conflict miss
                 //or numBlocks miss in fully associative
@@ -324,12 +324,12 @@ void Cache::DirectMappedRW(const string &tag, const unsigned long &set, bool &wr
     CacheBlock b;
     b.tag = tag;
     b.valid = 1;
-    int present = searchTagArray(set, tag);
-    if (present == 0) {
+    int present = searchTagArray(set, tag); //  checking if block already present in respective set
+    if (present == 0) { //  block present
         if (write)
             cache[set][0].dirty = 1;
 
-    } else {
+    } else {    //  cache miss
         ++cacheMiss;
         if (seenAddresses.find({tag, set}) != seenAddresses.end()) {
             //if the block was already on the cache and was evicted it is conflict miss
@@ -344,7 +344,7 @@ void Cache::DirectMappedRW(const string &tag, const unsigned long &set, bool &wr
         if (cache[set][0].dirty == 1)
             ++dirtyEvict;
 
-        if (write) {
+        if (write) {    //  check read or write miss
             b.dirty = 1;
             cache[set][0] = b;
             writeMiss++;

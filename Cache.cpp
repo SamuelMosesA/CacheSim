@@ -198,9 +198,9 @@ void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
     list<CacheBlock>::iterator it;
     int v, d;
     for (it = LRUList[set].begin(); it != LRUList[set].end(); it++) {
-        if (it->tag == tag) {            // Cache hit
-            v = (*it).valid;
-            d = write & (it->dirty);
+        if (it->valid == 1 && it->tag == tag) {            // Cache hit
+            v = it->valid;
+            d = (write || it->dirty);
             LRUList[set].erase(it);
             break;
         }
@@ -226,13 +226,12 @@ void Cache::LRURW(const string &tag, const unsigned long &set, bool &write) {
             if (temp.dirty) {            // Dirty block eviction
                 dirtyEvict++;
             }
-            LRUList.pop_back();        // Remove last element
+            LRUList[set].pop_back();        // Remove last element
             v = 1;
             d = write;
         }
     }
-    CacheBlock newBlock = {tag, v, d};
-    LRUList[set].emplace_front(newBlock);
+    LRUList[set].emplace_front(tag,v,d);
 }
 
 void Cache::PsuedoLRURW(const string &tag, const unsigned long &set, bool &write) {

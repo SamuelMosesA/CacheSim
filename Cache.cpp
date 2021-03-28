@@ -473,45 +473,43 @@ int main() {
     }
     addressFile.close();
 
-    ofstream outputFile("counterResult.txt");
-    outputFile << cacheSize << endl;
-    outputFile << cacheLine << endl;
+    cout << cacheSize << endl;
+    cout << cacheLine << endl;
     switch (ways) {
         case 0:
-            outputFile << "Fully-associative cache" << endl;
+            cout << "Fully-associative cache" << endl;
             break;
         case 1:
-            outputFile << "Direct-mapped cache" << endl;
+            cout << "Direct-mapped cache" << endl;
             break;
         default:
-            outputFile << "Set-associative cache" << endl;
+            cout << "Set-associative cache" << endl;
             break;
     }
     switch (repPolicy) {
         case 0:
-            outputFile << "Random Replacement" << endl;
+            cout << "Random Replacement" << endl;
             break;
         case 1:
-            outputFile << "LRU Replacement" << endl;
+            cout << "LRU Replacement" << endl;
             break;
         case 2:
-            outputFile << "Pseudo-LRU Replacement" << endl;
+            cout << "Pseudo-LRU Replacement" << endl;
             break;
         default:
             break;
     }
-    outputFile << cacheRef << endl;
-    outputFile << readAcc << endl;
-    outputFile << writeAcc << endl;
-    outputFile << cacheMiss << endl;
-    outputFile << compMiss << endl;
-    outputFile << capMiss << endl;
-    outputFile << confMiss << endl;
-    outputFile << readMiss << endl;
-    outputFile << writeMiss << endl;
-    outputFile << dirtyEvict << endl;
+    cout << cacheRef << endl;
+    cout << readAcc << endl;
+    cout << writeAcc << endl;
+    cout << cacheMiss << endl;
+    cout << compMiss << endl;
+    cout << capMiss << endl;
+    cout << confMiss << endl;
+    cout << readMiss << endl;
+    cout << writeMiss << endl;
+    cout << dirtyEvict << endl;
 
-    outputFile.close();
 
     return 0;
 }

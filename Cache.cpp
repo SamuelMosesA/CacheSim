@@ -1,3 +1,9 @@
+/*
+ * Team members:
+ * A Samuel Moses cs19b003
+ * K R Hariharan cs19b079
+ * Shree Vishnu cs19b045
+ */
 #include<iostream>
 #include<fstream>
 #include<string>
@@ -499,16 +505,16 @@ int main() {
         default:
             break;
     }
-    cout << cacheRef << endl;
-    cout << readAcc << endl;
-    cout << writeAcc << endl;
-    cout << cacheMiss << endl;
-    cout << compMiss << endl;
-    cout << capMiss << endl;
-    cout << confMiss << endl;
-    cout << readMiss << endl;
-    cout << writeMiss << endl;
-    cout << dirtyEvict << endl;
+    cout << "Cache Accesses :"<< cacheRef << endl;
+    cout << "Read Accesses :"<< readAcc << endl;
+    cout << "Write Accesses :"<< writeAcc << endl;
+    cout << "Cache Misses :"<< cacheMiss << endl;
+    cout << "Compulsory Misses :"<< compMiss << endl;
+    cout << "Capacity Misses :"<< capMiss << endl;
+    cout << "Conflict Misses :"<< confMiss << endl;
+    cout << "Read Misses :"<< readMiss << endl;
+    cout << "Write Misses :"<< writeMiss << endl;
+    cout << "Dirty Blocks Evicted :"<< dirtyEvict << endl;
 
 
     return 0;
